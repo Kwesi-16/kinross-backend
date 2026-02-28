@@ -2,9 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 
-// In‑memory database (replace with real DB later if needed)
 let users = [];
-let referrals = []; // track who referred whom
+let referrals = [];
 
 app.use(cors());
 app.use(express.json());
@@ -21,18 +20,36 @@ app.post('/signup', (req, res) => {
         return res.status(400).json({ error: 'Phone exists' });
     }
 
-    // Find referrer if code provided
     let referredBy = null;
     if (referralCode) {
         let referrer = users.find(u => u.inviteCode === referralCode);
         if (referrer) {
             referredBy = referrer.phone;
-            // Track the referral
             referrals.push({
                 referrer: referrer.phone,
                 referral: phone,
                 level: 1
             });
+
+            // Level 2
+            let parentReferrer = users.find(u => u.phone === referrer.referredBy);
+            if (parentReferrer) {
+                referrals.push({
+                    referrer: parentReferrer.phone,
+                    referral: phone,
+                    level: 2
+                });
+
+                // Level 3
+                let grandParent = users.find(u => u.phone === parentReferrer.referredBy);
+                if (grandParent) {
+                    referrals.push({
+                        referrer: grandParent.phone,
+                        referral: phone,
+                        level: 3
+                    });
+                }
+            }
         }
     }
 
@@ -48,10 +65,7 @@ app.post('/signup', (req, res) => {
         joined: new Date().toISOString(),
         lastSpin: 0,
         commission: 0,
-        investments: [],
-        level1: [],
-        level2: [],
-        level3: []
+        investments: []
     };
 
     users.push(newUser);
@@ -62,25 +76,29 @@ app.post('/signup', (req, res) => {
 app.post('/login', (req, res) => {
     const { phone, password } = req.body;
     const user = users.find(u => u.phone === phone && u.password === password);
-    if (!user) {
-        return res.status(401).json({ error: 'Invalid credentials' });
-    }
+    if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     res.json({ success: true, user });
 });
 
-// GET ALL USERS (with referral data)
+// GET ALL USERS + REFERRALS
 app.get('/users', (req, res) => {
-    // Build referral levels for each user
-    users.forEach(user => {
-        user.level1 = referrals.filter(r => r.referrer === user.phone && r.level === 1).map(r => r.referral);
-        user.level2 = referrals.filter(r => r.referrer === user.phone && r.level === 2).map(r => r.referral);
-        user.level3 = referrals.filter(r => r.referrer === user.phone && r.level === 3).map(r => r.referral);
+    const usersWithLevels = users.map(user => {
+        const level1 = referrals.filter(r => r.referrer === user.phone && r.level === 1).map(r => r.referral);
+        const level2 = referrals.filter(r => r.referrer === user.phone && r.level === 2).map(r => r.referral);
+        const level3 = referrals.filter(r => r.referrer === user.phone && r.level === 3).map(r => r.referral);
+
+        return {
+            ...user,
+            level1,
+            level2,
+            level3
+        };
     });
 
-    res.json({ users });
+    res.json({ users: usersWithLevels });
 });
 
-// UPDATE BALANCE (admin only – no auth for now)
+// UPDATE BALANCE
 app.post('/update-balance', (req, res) => {
     const { phone, amount } = req.body;
     const user = users.find(u => u.phone === phone);
@@ -91,4 +109,4 @@ app.post('/update-balance', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log('Server running'));
