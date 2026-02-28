@@ -12,7 +12,7 @@ app.get('/', (req, res) => {
     res.json({ message: 'Kinross Gold API Running!' });
 });
 
-// SIGNUP
+// ========== SIGNUP ==========
 app.post('/signup', (req, res) => {
     const { name, phone, password, referralCode } = req.body;
 
@@ -25,31 +25,12 @@ app.post('/signup', (req, res) => {
         let referrer = users.find(u => u.inviteCode === referralCode);
         if (referrer) {
             referredBy = referrer.phone;
+            // Track the referral
             referrals.push({
                 referrer: referrer.phone,
                 referral: phone,
                 level: 1
             });
-
-            // Level 2
-            let parentReferrer = users.find(u => u.phone === referrer.referredBy);
-            if (parentReferrer) {
-                referrals.push({
-                    referrer: parentReferrer.phone,
-                    referral: phone,
-                    level: 2
-                });
-
-                // Level 3
-                let grandParent = users.find(u => u.phone === parentReferrer.referredBy);
-                if (grandParent) {
-                    referrals.push({
-                        referrer: grandParent.phone,
-                        referral: phone,
-                        level: 3
-                    });
-                }
-            }
         }
     }
 
@@ -61,18 +42,22 @@ app.post('/signup', (req, res) => {
         password,
         balance: 10.30,
         inviteCode,
-        referredBy,
+        referredBy,  // ← THIS WAS MISSING
         joined: new Date().toISOString(),
         lastSpin: 0,
         commission: 0,
-        investments: []
+        investments: [],
+        deposits: [],
+        withdrawals: [],
+        spinRecords: [],
+        dailyReturns: []
     };
 
     users.push(newUser);
     res.json({ success: true, user: newUser });
 });
 
-// LOGIN
+// ========== LOGIN ==========
 app.post('/login', (req, res) => {
     const { phone, password } = req.body;
     const user = users.find(u => u.phone === phone && u.password === password);
@@ -80,7 +65,7 @@ app.post('/login', (req, res) => {
     res.json({ success: true, user });
 });
 
-// GET ALL USERS + REFERRALS
+// ========== GET ALL USERS ==========
 app.get('/users', (req, res) => {
     const usersWithLevels = users.map(user => {
         const level1 = referrals.filter(r => r.referrer === user.phone && r.level === 1).map(r => r.referral);
@@ -98,14 +83,31 @@ app.get('/users', (req, res) => {
     res.json({ users: usersWithLevels });
 });
 
-// UPDATE BALANCE
+// ========== UPDATE BALANCE (FIXED) ==========
 app.post('/update-balance', (req, res) => {
     const { phone, amount } = req.body;
     const user = users.find(u => u.phone === phone);
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
 
-    user.balance = (user.balance || 10.30) + amount;
-    res.json({ success: true, newBalance: user.balance });
+    // Add to balance
+    user.balance = (user.balance || 10.30) + parseFloat(amount);
+    
+    // Record the deposit
+    if (!user.deposits) user.deposits = [];
+    user.deposits.push({
+        amount: parseFloat(amount),
+        date: new Date().toISOString(),
+        type: 'admin_add'
+    });
+
+    res.json({ 
+        success: true, 
+        newBalance: user.balance,
+        message: `Added GHS ${amount} to ${phone}`
+    });
 });
 
 const PORT = process.env.PORT || 3000;
