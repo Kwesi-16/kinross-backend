@@ -33,21 +33,14 @@ app.post('/signup', (req, res) => {
     }
 
     let referredBy = null;
+    
+    // ONLY track direct referral - NO commissions!
     if (referralCode) {
         let referrer = users.find(u => u.inviteCode === referralCode);
         if (referrer) {
             referredBy = referrer.phone;
+            // JUST store who referred them - that's it!
             referrals.push({ referrer: referrer.phone, referral: phone, level: 1, date: new Date().toISOString() });
-            
-            const parentReferral = referrals.find(r => r.referral === referrer.phone);
-            if (parentReferral) {
-                referrals.push({ referrer: parentReferral.referrer, referral: phone, level: 2, date: new Date().toISOString() });
-                
-                const grandParentReferral = referrals.find(r => r.referral === parentReferral.referrer);
-                if (grandParentReferral) {
-                    referrals.push({ referrer: grandParentReferral.referrer, referral: phone, level: 3, date: new Date().toISOString() });
-                }
-            }
         }
     }
 
@@ -59,7 +52,7 @@ app.post('/signup', (req, res) => {
         password, 
         balance: 10.30, 
         inviteCode, 
-        referredBy,
+        referredBy,  // This stores who referred them
         joined: new Date().toISOString(), 
         lastSpin: 0, 
         lastReturnCheck: Date.now(),
@@ -244,8 +237,9 @@ app.post('/request-deposit', (req, res) => {
 });
 
 // ========== REQUEST WITHDRAWAL ==========
+
 app.post('/request-withdrawal', (req, res) => {
-    const { phone, amount, network, withdrawPhone } = req.body;
+    const { phone, amount, network, withdrawPhone, accountName } = req.body; // ← ADD accountName
     const user = users.find(u => u.phone === phone);
     if (!user) return res.status(404).json({ error: 'User not found' });
     
@@ -260,6 +254,7 @@ app.post('/request-withdrawal', (req, res) => {
         amount, 
         network, 
         withdrawPhone, 
+        accountName: accountName || user.wallet?.name || 'Not provided', // ← ADD THIS
         time: new Date().toISOString(), 
         status: 'pending' 
     });
