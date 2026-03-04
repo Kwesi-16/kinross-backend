@@ -33,13 +33,11 @@ app.post('/signup', (req, res) => {
     }
 
     let referredBy = null;
-    
-    // ONLY track direct referral - NO commissions!
     if (referralCode) {
         let referrer = users.find(u => u.inviteCode === referralCode);
         if (referrer) {
             referredBy = referrer.phone;
-            // JUST store who referred them - that's it!
+            // ONLY track level 1 - NO commissions!
             referrals.push({ referrer: referrer.phone, referral: phone, level: 1, date: new Date().toISOString() });
         }
     }
@@ -52,7 +50,7 @@ app.post('/signup', (req, res) => {
         password, 
         balance: 10.30, 
         inviteCode, 
-        referredBy,  // This stores who referred them
+        referredBy,
         joined: new Date().toISOString(), 
         lastSpin: 0, 
         lastReturnCheck: Date.now(),
